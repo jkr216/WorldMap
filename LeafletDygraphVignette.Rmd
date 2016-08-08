@@ -1,0 +1,312 @@
+---
+title: "Leaflet Dygraph Vignette"
+resource_files:
+- leafletvignetteDataGrab.R
+- sourceData.RDat
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+# Load packages and initialize data here
+library(flexdashboard)
+library(scales)
+library(dygraphs)
+library(leaflet)
+library(macrodata)
+library(dplyr)
+library(countrycode)
+library(ggplot2)
+library(plotly)
+library(DT)
+
+##load data
+load('sourceData.RDat')
+
+##create shading by GDP
+pal <- colorNumeric(
+  palette = "Blues",
+  domain = countries$gdp_md_est
+)
+
+qpal <- colorQuantile("Blues", countries$gdp_md_est, n = 20)
+
+##create popup country name and economic stage
+popup <- paste0("<strong>Country: </strong>", 
+                countries$name, 
+                "<br><strong>Market Stage: </strong>", 
+                countries$economy)
+
+leaf_world <- leaflet(countries) %>%
+  addProviderTiles("CartoDB.Positron") %>% 
+  setView(lng =  90, lat =  15, zoom = 2) %>%
+      addPolygons(stroke = FALSE, smoothFactor = 0.2, fillOpacity = .7, color =
+      ~qpal(gdp_md_est), layerId = ~name, popup = popup)
+
+##build map of georgia shaded by county population
+
+ga <- subset(counties, counties$STATEFP %in% c("13"))
+ga <- ga[order(ga$NAME),]
+
+##add population data to the ga spatial data frame
+ga$POPULATION <- as.numeric(ga_counties_DF$`Population Estimate (as of July 1) - 2012`)
+
+
+GApal <- colorNumeric(
+  palette = "Blues",
+  domain = ga$POPULATION
+)
+
+GApal <- colorQuantile("Blues", ga$POPULATION, n = 20)
+
+GApopup <- paste0("<strong>County: </strong>", 
+                ga$NAME, 
+                "<br><strong>Population: </strong>", 
+                ga$POPULATION)
+
+leaf_georgia <- leaflet(ga) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+      addPolygons(stroke = FALSE, smoothFactor = 0.2, fillOpacity = .7, color =
+      ~GApal(POPULATION), layerId = ~NAME, popup = GApopup)
+
+##load up some gdp and population data
+gdp2008 <- as.data.frame(countries$gdp_md_est)
+rownames(gdp2008) <- countries$name
+gdp2008$pop <- countries$pop_est
+colnames(gdp2008) <- c("GDP", "Population")
+
+```
+
+
+World Map Time Series {data-orientation=rows}
+=====================================
+
+Sidebar {.sidebar}
+-------------------------------------
+  
+```{r}
+
+helpText("Select an economic time series.")
+
+selectInput("indicatorselect2", "Choose an economic indicator", 
+                          choices = c("GDP Per Capita", "GDP Per Capita Growth", 
+                                      "Real Interest Rate", "Exchange Rate (2005 = 100)",
+                                      "CPI", 
+                                      "Labor Force Part. Rate - all", "Labor Force Part. Rate 
+                                      - Women"))
+
+```
+
+Row {data-height=650}
+-------------------------------------
+
+### World Map
+
+```{r, echo = FALSE}
+
+  leafletOutput("map1")
+
+  output$map1 <- renderLeaflet({
+    leaf_world
+  })
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### Economic Time Series
+
+```{r, echo = FALSE}
+
+dygraphOutput("dygraph2")
+  
+   clickedCountry <- eventReactive(input$map1_shape_click, {
+     return(input$map1_shape_click$id)
+     })
+   
+   indicatorInput2 <- reactive({
+     switch(input$indicatorselect2,
+         "GDP Per Capita" = WorldGDPPerCapita,
+         "GDP Per Capita Growth" = WorldGDPPerCapitaGrowth,
+         "Real Interest Rate" = WorldRealInterestRate, 
+         "Exchange Rate (2005 = 100)" = WorldExchangeRate, 
+         "CPI" = WorldCPI, 
+         "Labor Force Part. Rate - Women" = WorldFemaleLaborPartRate, 
+         "Labor Force Part. Rate - all" = WorldTotalLaborPartRate)
+})
+   
+   output$dygraph2 <- renderDygraph({
+    
+    ##get the economic indicator from the sidebar 
+    indicator2<-indicatorInput2()
+    
+    ##turn the country clicked on into a country code
+    code2<- countrycode(as.character(clickedCountry()), "country.name", "iso3c")
+    
+    dygraph(indicator2[, code2], main = clickedCountry()) %>%
+      dyRangeSelector(height = 20) %>%
+      dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
+      dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc =
+      "top", color = "red")
+      })
+   
+```
+
+
+### Data Table Country Indicators
+
+```{r}
+renderDataTable({
+    ##get the economic indicator from t
+    indicator2<-indicatorInput2()
+    
+    ##turn the country clicked on into a country code
+    code2<- countrycode(as.character(clickedCountry()), "country.name", "iso3c")
+    
+    countryData <- merge(WorldCPI[, code2], 
+                         WorldExchangeRate[, code2],         
+                         WorldGDPPerCapitaGrowth[, code2], 
+                         WorldGDPPerCapita[, code2],
+                         WorldRealInterestRate[, code2],
+                         WorldTotalLaborPartRate[, code2],
+                         WorldFemaleLaborPartRate[, code2])
+    countryDataTable <- as.data.table(countryData)
+    colnames(countryDataTable)<- c( "Date",
+                                   "CPI", 
+                                   "Exchange Rate", 
+                                   "GDP per cap growth", 
+                                   "GDP Growth",
+                                   "Int. Rate", 
+                                   "Labor Part.",
+                                   "Fem. Lab. Part.")
+    
+    return(countryDataTable)
+  })
+
+```
+ 
+
+
+Georgia Map {data-orientation=rows}
+=====================================
+
+Sidebar {.sidebar}
+-------------------------------------
+  
+```{r}
+
+helpText("Select an economic time series.")
+
+selectInput("indicatorselect1", "Choose a time series", 
+                          choices = c("Deposits", "Unemployment Rate", 
+                                      "Average Mortgage Size"))
+
+```
+
+Row {data-height=650}
+-------------------------------------
+
+### Georgia Counties
+
+```{r, echo = FALSE}
+
+leafletOutput("map2")
+
+  output$map2 <- renderLeaflet({
+    leaf_georgia
+  })
+
+```
+
+Row {data-height=350}
+-------------------------------------
+
+### Total Deposits over Time
+
+```{r}
+##get the county that was clicked on
+
+dygraphOutput("dygraph3")
+
+clickedCounty <- eventReactive(input$map2_shape_click, {
+     return(input$map2_shape_click$id)
+     })
+
+output$dygraph3 <- renderDygraph({
+dygraph(gaCounty_xts[, as.character(clickedCounty())], main = clickedCounty()) %>%
+      dyRangeSelector(height = 20) %>%
+  dyAxis(
+    "y",
+    label = "Deposits",
+    valueFormatter = 'function(d){return d.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ",");}',
+    axisLabelFormatter = 'function(d){return d.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ",");}',
+    axisLabelFontSize = 10,
+    axisLabelWidth = 70) %>% 
+    dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
+      dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc =
+      "top", color = "red")
+      })
+```
+
+Linked Brushing {data-orientation=columns}
+=====================================
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### GDP v. Population {data-width=600}
+
+```{r, echo=FALSE}
+# Reactive that returns the whole dataset if there is no brush
+selectedData <- reactive({
+  data <- brushedPoints(gdp2008, input$plot1_brush)
+  if (nrow(data) == 0)
+    data <- gdp2008
+  data
+})
+
+plotOutput("plot1", brush = brushOpts(id = "plot1_brush"))
+output$plot1 <- renderPlot({
+  ggplot(gdp2008, aes(Population, GDP)) + geom_point()
+})
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Country Details
+
+```{r}
+renderTable({
+  selectedData()
+})
+```
+
+Notes {data-icon="fa-list"}
+=====================================
+
+### Thoughts and applications
+
+- finance/investment management 
+
+- banking: deposits/mortgage revenue by county, state 
+
+- insurance: risk/claims by location
+
+- epidemiology: health risks across regions
+
+- public safety (Pittsburgh): crimes/captial by neighborhood
+
+- non-profit: fundraising by state over time
+
+- select two location for pairs data, such as cross-border trade
+
+- multiple time series to move beyond data exploration to statistical inference
+
+- reversing the reactivity: Leaflet reacts to the Dygraph input
+
+
