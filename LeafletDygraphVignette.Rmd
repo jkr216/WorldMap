@@ -16,12 +16,12 @@ library(flexdashboard)
 library(scales)
 library(dygraphs)
 library(leaflet)
-library(macrodata)
 library(dplyr)
 library(countrycode)
 library(ggplot2)
+library(data.table)
 library(DT)
-
+library(xts)
 ##load data
 load('sourceData.RDat')
 
@@ -53,11 +53,13 @@ Sidebar {.sidebar}
 
 helpText("Select an economic time series.")
 
-selectInput("indicatorselect2", "Choose an economic indicator", 
-                          choices = c("GDP Per Capita", "GDP Per Capita Growth", 
-                                      "Real Interest Rate", "Exchange Rate",
+selectInput("indicatorSelect", "Choose an economic indicator", 
+                          choices = c("GDP Per Capita", 
+                                      "GDP Per Capita Growth", 
+                                      "Real Interest Rate", 
+                                      "Exchange Rate",
                                       "CPI", 
-                                      "Labor Force Part. Rate - all"))
+                                      "Labor Force Part. Rate"))
 
 ```
 
@@ -82,33 +84,23 @@ Row {.tabset .tabset-fade}
 
 ```{r, echo = FALSE}
 
-dygraphOutput("dygraph2")
+dygraphOutput("dygraph")
   
    clickedCountry <- eventReactive(input$map1_shape_click, {
      return(input$map1_shape_click$id)
      })
    
-   indicatorInput2 <- reactive({
-     switch(input$indicatorselect2,
-         "GDP Per Capita" = WorldGDPPerCapita,
-         "GDP Per Capita Growth" = WorldGDPPerCapitaGrowth,
-         "Real Interest Rate" = WorldRealInterestRate, 
-         "Exchange Rate" = WorldExchangeRate, 
-         "CPI" = WorldCPI, 
-         "Labor Force Part. Rate - all" = WorldTotalLaborPartRate)
-})
+   indicatorInput <- reactive({
+       input$indicatorSelect
+     })
    
-   output$dygraph2 <- renderDygraph({
+   output$dygraph <- renderDygraph({
     
-    ##get the economic indicator from the sidebar 
-    indicator2<-indicatorInput2()
+    ##not necessary but if desirable there's a package to translate country names into country codes
+    ##code2<- countrycode("enter country name here", "country.name", "iso3c")
     
-    ##turn the country clicked on into a country code
-    ##why is this neccesary? because our economic data is from the World Bank
-    ##and the World Bank uses country codes, not country names
-    ##code2<- countrycode(as.character(clickedCountry()), "country.name", "iso3c")
-    
-    dygraph(indicator2[, as.character(clickedCountry())], main = clickedCountry()) %>%
+    dygraph(econData[[as.character(indicatorInput())]][, as.character(clickedCountry())], main = 
+              clickedCountry()) %>%
       dyRangeSelector(height = 20) %>%
       dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
       dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc =
@@ -122,28 +114,31 @@ dygraphOutput("dygraph2")
 
 ```{r}
 renderDataTable({
-    ##get the economic indicator from t
-    indicator2<-indicatorInput2()
     
-    ##turn the country clicked on into a country code
-    code2<- countrycode(as.character(clickedCountry()), "country.name", "iso3c")
+    country <- as.character(clickedCountry())
     
-    countryData <- merge(WorldCPI[, code2], 
-                         WorldExchangeRate[, code2],         
-                         WorldGDPPerCapitaGrowth[, code2], 
-                         WorldGDPPerCapita[, code2],
-                         WorldRealInterestRate[, code2],
-                         WorldTotalLaborPartRate[, code2])
-    countryDataTable <- as.data.table(countryData)
-    colnames(countryDataTable)<- c( "Date",
+    countryData <-merge.xts(econData[[1]][, country],
+                            econData[[2]][, country],
+                            econData[[3]][, country],
+                            econData[[4]][, country],
+                            econData[[5]][, country],
+                            econData[[6]][, country],
+                            econData[[7]][, country]
+                            )
+    
+    countryData <- as.data.table(countryData)
+    
+    colnames(countryData) <-     c("Date",
+                                   "GDP Per Cap", 
+                                   "GDP Per Cap Growth",
+                                   "Real Int Rate", 
+                                   "Ex Rate",
                                    "CPI", 
-                                   "Exchange Rate", 
-                                   "GDPPC", 
-                                   "GDPPC Growth",
-                                   "Int. Rate", 
-                                   "Labor Part.")
+                                   "Labor Force Part.",
+                                   "Female Labor Part."
+                                   )
     
-    datatable(countryDataTable, fillContainer = TRUE, caption = 
+    datatable(countryData, fillContainer = TRUE, caption = 
               paste(as.character(input$map1_shape_click$id), "Economic Data"))
   })
 
@@ -164,15 +159,7 @@ rownames(gdp2008) <- world$name
 gdp2008$pop <- world$pop_est
 colnames(gdp2008) <- c("GDP", "Population")
 
-# Reactive that returns the whole dataset if there is no brush
-selectedData <- reactive({
-  req(input$plot1_brush)
-  data <- brushedPoints(gdp2008, input$plot1_brush)
-  ##if (nrow(data) == 0)
-    ##data <- gdp2008
-  ##data
-})
-
+##the ggplot scatterplot
 plotOutput("plot1", brush = brushOpts(id = "plot1_brush"))
 
 output$plot1 <- renderPlot({
@@ -188,7 +175,9 @@ Column {data-width=350}
 
 ```{r}
 renderTable({
-  selectedData()
+  req(input$plot1_brush)
+  data <- brushedPoints(gdp2008, input$plot1_brush)
+  data
 })
 ```
 
