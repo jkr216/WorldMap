@@ -32,8 +32,6 @@ econData <- requestQ(econIndicators, c(17, 3, 1, 10, 19, 6, 5))
 names(econData) <- c("GDP Per Capita", "GDP Per Capita Growth", "Real Interest Rate", 
                      "Exchange Rate", "CPI", "Labor Force Part. Rate", "Labor Female")
 
-test <- lapply(econData, function(x) {merge(x[, "USA"], all=T) } )
-testDataTable <- as.data.table(test)
 
 ### Save
 save(world, econData, file = 'sourceData.RDat')
