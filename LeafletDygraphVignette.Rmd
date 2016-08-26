@@ -26,25 +26,19 @@ library(DT)
 load('sourceData.RDat')
 
 ##create shading by GDP
-qpal <- colorQuantile("Blues", countries$gdp_md_est, n = 20)
+qpal <- colorQuantile("Blues", world$gdp_md_est, n = 20)
 
 ##create popup country name and economic stage
 popup <- paste0("<strong>Country: </strong>", 
-                countries$name, 
+                world$name, 
                 "<br><strong>Market Stage: </strong>", 
-                countries$economy)
+                world$economy)
 
-leaf_world <- leaflet(countries) %>%
+leaf_world <- leaflet(world) %>%
   addProviderTiles("CartoDB.Positron") %>% 
   setView(lng =  20, lat =  15, zoom = 2) %>%
       addPolygons(stroke = FALSE, smoothFactor = 0.2, fillOpacity = .7, color =
-      ~qpal(gdp_md_est), layerId = ~name, popup = popup)
-
-##load up some gdp and population data
-gdp2008 <- as.data.frame(countries$gdp_md_est)
-rownames(gdp2008) <- countries$name
-gdp2008$pop <- countries$pop_est
-colnames(gdp2008) <- c("GDP", "Population")
+      ~qpal(gdp_md_est), layerId = ~iso_a3, popup = popup)
 
 ```
 
@@ -110,9 +104,11 @@ dygraphOutput("dygraph2")
     indicator2<-indicatorInput2()
     
     ##turn the country clicked on into a country code
-    code2<- countrycode(as.character(clickedCountry()), "country.name", "iso3c")
+    ##why is this neccesary? because our economic data is from the World Bank
+    ##and the World Bank uses country codes, not country names
+    ##code2<- countrycode(as.character(clickedCountry()), "country.name", "iso3c")
     
-    dygraph(indicator2[, code2], main = clickedCountry()) %>%
+    dygraph(indicator2[, as.character(clickedCountry())], main = clickedCountry()) %>%
       dyRangeSelector(height = 20) %>%
       dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
       dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc =
@@ -122,7 +118,7 @@ dygraphOutput("dygraph2")
 ```
 
 
-### Data Table Country Indicators
+### Data Table Country Indicators 
 
 ```{r}
 renderDataTable({
@@ -147,7 +143,8 @@ renderDataTable({
                                    "Int. Rate", 
                                    "Labor Part.")
     
-    datatable(countryDataTable, fillContainer = TRUE)
+    datatable(countryDataTable, fillContainer = TRUE, caption = 
+              paste(as.character(input$map1_shape_click$id), "Economic Data"))
   })
 
 ```
@@ -161,16 +158,23 @@ Column {data-width=350}
 ### GDP v. Population {data-width=600}
 
 ```{r, echo=FALSE}
+##load up some gdp and population data
+gdp2008 <- as.data.frame(world$gdp_md_est)
+rownames(gdp2008) <- world$name
+gdp2008$pop <- world$pop_est
+colnames(gdp2008) <- c("GDP", "Population")
+
 # Reactive that returns the whole dataset if there is no brush
 selectedData <- reactive({
   req(input$plot1_brush)
   data <- brushedPoints(gdp2008, input$plot1_brush)
-  if (nrow(data) == 0)
-    data <- gdp2008
-  data
+  ##if (nrow(data) == 0)
+    ##data <- gdp2008
+  ##data
 })
 
 plotOutput("plot1", brush = brushOpts(id = "plot1_brush"))
+
 output$plot1 <- renderPlot({
   ggplot(gdp2008, aes(Population, GDP)) + geom_point()
 })
@@ -184,7 +188,6 @@ Column {data-width=350}
 
 ```{r}
 renderTable({
-  
   selectedData()
 })
 ```

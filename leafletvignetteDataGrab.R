@@ -7,44 +7,25 @@ library(countrycode)
 library(sp)
 library(readr)
 
-##set wd
-setwd("~/sol-eng-sales/JKR_Data")
 
-load('~/sourceData.RDat')
+load('sourceData.RDat')
 
-### Inputs
-Quandl.api_key("iz-ThHX9dpWweuxYW43a")
-url <- "http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/50m/cultural/ne_50m_admin_0_countries.zip"
-tmpdir <- tempdir() # destination for download data
-filenam <- basename(url)
+##where to find the world map
+## "http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/50m/cultural/ne_50m_admin_0_countries.zip"
 
-### Download and unzip OGR data source
-file <- file.path(tmpdir, filenam)
-download.file(url, file)
-unzip(file, exdir = tmpdir)
 
 ### Create spatial vector object
-countries <- readOGR(
-  dsn = tmpdir, 
-  layer = sub("^([^.]*).*", "\\1", filenam),
-  encoding = "UTF-8",
-  verbose = FALSE
-)
-
-##get GA state map data in spatial data frame form. source: us census
-counties <- readOGR(".", "cb_2015_us_county_20m", verbose = FALSE)
-
 world <-readOGR(".", "ne_50m_admin_0_countries", verbose = FALSE)
 
-world$admin
-
-##get GA popultation by county
-ga_counties_data <- read_csv("GA-Counties-Data.csv")
-ga_counties_DF <- as.data.frame(ga_counties_data)
-colnames(ga_counties_DF) = ga_counties_DF[1, ]
-ga_counties_DF = ga_counties_DF[-1, ]
+### Quandl key from quandl.com
+## Quandl is a source of world macroeconomic data and is free
+##in this case we will pull in world bank data
+Quandl.api_key("iz-ThHX9dpWweuxYW43a")
 
 ##get GDP per capita data for all countries
+##serachQ is part of the macrodata package
+##see here for more info: http://regisely.com/blog/macrodata/
+
 searchWWDIall <- searchQ("gdp per capita", country = "Brazil", frequency = "annual", 
                          database = "WWDI", view = FALSE)
 
@@ -72,6 +53,6 @@ WorldFemaleLaborPartRate <- dataWWDIall2$`FemaleLaborPartRate`
 WorldTotalLaborPartRate <- dataWWDIall2$`TotalLaborPartRate`
 
 ### Save
-save(countries, WorldGDPPerCapita, WorldGDPPerCapitaGrowth, dataWWDIall, dataWWDIall2, WorldRealInterestRate, 
+save(world, WorldGDPPerCapita, WorldGDPPerCapitaGrowth, dataWWDIall, dataWWDIall2, WorldRealInterestRate, 
      WorldExchangeRate, WorldCPI, WorldFemaleLaborPartRate,
      WorldTotalLaborPartRate, counties, ga_counties_DF, file = 'sourceData.RDat')
