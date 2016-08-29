@@ -21,7 +21,9 @@ library(countrycode)
 library(ggplot2)
 library(data.table)
 library(DT)
+library(lubridate)
 library(xts)
+
 ##load data
 load('sourceData.RDat')
 
@@ -59,7 +61,8 @@ selectInput("indicatorSelect", "Choose an economic indicator",
                                       "Real Interest Rate", 
                                       "Exchange Rate",
                                       "CPI", 
-                                      "Labor Force Part. Rate"))
+                                      "Labor Force Part. Rate",
+                                      "Female Labor Part."))
 
 ```
 
@@ -117,26 +120,10 @@ renderDataTable({
     
     country <- as.character(clickedCountry())
     
-    countryData <-merge.xts(econData[[1]][, country],
-                            econData[[2]][, country],
-                            econData[[3]][, country],
-                            econData[[4]][, country],
-                            econData[[5]][, country],
-                            econData[[6]][, country],
-                            econData[[7]][, country]
-                            )
-    
-    countryData <- as.data.table(countryData)
-    
-    colnames(countryData) <-     c("Date",
-                                   "GDP Per Cap", 
-                                   "GDP Per Cap Growth",
-                                   "Real Int Rate", 
-                                   "Ex Rate",
-                                   "CPI", 
-                                   "Labor Force Part.",
-                                   "Female Labor Part."
-                                   )
+    countryData <- econData %>% lapply(., function(x) {merge(x[, country])}) %>%
+        as.data.table() %>% 
+        mutate(Date = seq(mdy('12/31/1960'),mdy('12/31/2015'),by='years')) %>% 
+        setcolorder(., c(length(.), 1:(length(.)-1)))
     
     datatable(countryData, fillContainer = TRUE, caption = 
               paste(as.character(input$map1_shape_click$id), "Economic Data"))
