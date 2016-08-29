@@ -128,8 +128,7 @@ renderDataTable({
     
     datatable(countryData, fillContainer = TRUE, caption = 
               paste(as.character(input$map1_shape_click$id), "Economic Data"),  
-              options = list(dom = 't', autoWidth = TRUE,
-              columnDefs = list(list(width = '100px', targets = c(1)))))
+              options = list(dom = 't'))
   })
 
 ```
