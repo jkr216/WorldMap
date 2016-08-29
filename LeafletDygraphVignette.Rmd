@@ -121,12 +121,15 @@ renderDataTable({
     country <- as.character(clickedCountry())
     
     countryData <- econData %>% lapply(., function(x) {merge(x[, country])}) %>%
-        as.data.table() %>% 
+        as.data.table() %>%
+        mutate_each(funs(round(.,2))) %>% 
         mutate(Date = seq(mdy('12/31/1960'),mdy('12/31/2015'),by='years')) %>% 
         setcolorder(., c(length(.), 1:(length(.)-1)))
     
     datatable(countryData, fillContainer = TRUE, caption = 
-              paste(as.character(input$map1_shape_click$id), "Economic Data"),  options = list(dom = 't'))
+              paste(as.character(input$map1_shape_click$id), "Economic Data"),  
+              options = list(dom = 't', autoWidth = TRUE,
+              columnDefs = list(list(width = '100px', targets = c(1)))))
   })
 
 ```
