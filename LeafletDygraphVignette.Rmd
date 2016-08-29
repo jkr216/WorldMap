@@ -126,7 +126,7 @@ renderDataTable({
         setcolorder(., c(length(.), 1:(length(.)-1)))
     
     datatable(countryData, fillContainer = TRUE, caption = 
-              paste(as.character(input$map1_shape_click$id), "Economic Data"))
+              paste(as.character(input$map1_shape_click$id), "Economic Data"),  options = list(dom = 't'))
   })
 
 ```
