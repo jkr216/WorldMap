@@ -1,0 +1,179 @@
+---
+title: "Leaflet Dygraph Vignette"
+resource_files:
+- WDI-Map-datagrab.Rmd
+- wdiMapData.RDat
+runtime: shiny
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    
+---
+
+```{r setup, include=FALSE}
+# Load packages and initialize data here
+library(flexdashboard)
+library(scales)
+library(dygraphs)
+library(leaflet)
+library(dplyr)
+library(countrycode)
+library(ggplot2)
+library(data.table)
+library(DT)
+library(lubridate)
+library(xts)
+```
+
+```{r data, cache = TRUE, include = FALSE}
+
+##load data
+load('wdiMapData.RDat')
+
+##create shading by GDP
+qpal <- colorQuantile("Blues", world$gdp_md_est, n = 20)
+
+##create popup country name and economic stage
+popup <- paste0("<strong>Country: </strong>", 
+                world$name, 
+                "<br><strong>Market Stage: </strong>", 
+                world$economy)
+
+leaf_world <- leaflet(world) %>%
+  addProviderTiles("CartoDB.Positron") %>% 
+  setView(lng =  20, lat =  15, zoom = 2) %>%
+      addPolygons(stroke = FALSE, smoothFactor = 0.2, fillOpacity = .7, color =
+      ~qpal(gdp_md_est), layerId = ~iso_a3, popup = popup)
+
+```
+
+
+World Map Time Series {data-orientation=rows}
+=====================================
+
+Sidebar {.sidebar}
+-------------------------------------
+  
+```{r}
+
+helpText("Select an economic time series.")
+
+selectInput("indicatorSelect", "Choose an economic indicator", 
+                          choices = c("GDP Per Capita", 
+                                      "GDP Per Capita Growth", 
+                                      "Real Interest Rate", 
+                                      "Exchange Rate",
+                                      "CPI", 
+                                      "Labor Force Part. Rate",
+                                      "Female Labor Part."))
+
+```
+
+Row {data-height=650}
+-------------------------------------
+
+### World Map
+
+```{r, echo = FALSE}
+
+  leafletOutput("map1")
+
+  output$map1 <- renderLeaflet({
+    leaf_world
+  })
+```
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+
+### Economic Time Series
+
+```{r, echo = FALSE}
+
+dygraphOutput("dygraph")
+  
+   clickedCountry <- eventReactive(input$map1_shape_click, {
+     return(input$map1_shape_click$id)
+     })
+   
+   indicatorInput <- reactive({
+       input$indicatorSelect
+     })
+   
+   output$dygraph <- renderDygraph({
+    
+    ##not necessary but if desirable there's a package to translate country names into country codes
+    ##code2<- countrycode("enter country name here", "country.name", "iso3c")
+     
+    country <- as.character(clickedCountry())
+    indicator <- as.character(indicatorInput())
+    dygraph(econData[[indicator]][, country], main = 
+              paste(country, indicator, sep = " ")) %>%
+      dyRangeSelector(height = 20) %>%
+      dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
+      dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc =
+      "top", color = "red")
+      })
+   
+```
+
+
+### Data Table Country Indicators 
+
+```{r}
+renderDataTable({
+    
+    country <- as.character(clickedCountry())
+    
+    countryData <- econData %>% lapply(., function(x) {merge(x[, country])}) %>%
+        as.data.table() %>%
+        mutate_each(funs(round(.,2))) %>% 
+        mutate(Date = seq(mdy('12/31/1960'),mdy('12/31/2015'),by='years')) %>% 
+        setcolorder(., c(length(.), 1:(length(.)-1)))
+    
+    datatable(countryData, fillContainer = TRUE, caption = 
+              paste(as.character(input$map1_shape_click$id), "Economic Data"), 
+              options = list(dom = 't'))
+    
+  })
+
+```
+
+Linked Brushing {data-orientation=columns}
+=====================================
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### GDP v. Population {data-width=600}
+
+```{r, echo=FALSE}
+##load up some gdp and population data
+library(dplyr)
+gdp2008 <- data_frame(world$name, world$gdp_md_est, world$pop_est)
+colnames(gdp2008) <- c("Country", "GDP", "Population")
+
+##the ggplot scatterplot
+plotOutput("plot1", brush = brushOpts(id = "plot1_brush"))
+
+output$plot1 <- renderPlot({
+  ggplot(gdp2008, aes(Population, GDP)) + geom_point()
+})
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Country Details
+
+```{r}
+renderTable({
+  req(input$plot1_brush)
+  data <- brushedPoints(gdp2008, input$plot1_brush)
+  data
+})
+```
+
+
+

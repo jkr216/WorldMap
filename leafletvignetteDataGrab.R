@@ -1,7 +1,7 @@
 ##the packages we need to grab the map data
 library(rgdal)
 library(sp)
-
+library(rmapshaper)
 ##the packages we need to grab the macroeconomic data
 devtools::install_github("regisely/macrodata")
 library(devtools)
@@ -15,6 +15,8 @@ library(Quandl)
 ## Have a look at this in the global environment after it is loaded
 ## it contains the shape file, and population and gdp data, amongst other things
 world <-readOGR(".", "ne_50m_admin_0_countries", verbose = FALSE)
+
+world <- ms_simplify(world)
 
 ### Quandl key from quandl.com
 ## Quandl is a source of world macroeconomic data and is free
