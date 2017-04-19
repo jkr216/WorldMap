@@ -128,7 +128,7 @@ renderDataTable({
     countryData <- econData %>% lapply(., function(x) {merge(x[, country])}) %>%
         as.data.table() %>%
         mutate_each(funs(round(.,2))) %>% 
-        mutate(Date = seq(mdy('12/31/1960'),mdy('12/31/2015'),by='years')) %>% 
+        mutate(Date = seq(mdy('12/31/1960'), mdy('12/31/2015'), by='years')) %>% 
         setcolorder(., c(length(.), 1:(length(.)-1)))
     
     datatable(countryData, fillContainer = TRUE, caption = 
@@ -137,6 +137,11 @@ renderDataTable({
     
   })
 
+```
+
+### Country Research
+
+```{r}
 ```
 
 Linked Brushing {data-orientation=columns}
