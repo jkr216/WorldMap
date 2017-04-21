@@ -12,12 +12,11 @@ output:
 
 ```{r setup, include=FALSE}
 # Load packages and initialize data here
-library(flexdashboard)
+library(Quandl)
 library(scales)
 library(dygraphs)
 library(leaflet)
 library(dplyr)
-library(countrycode)
 library(ggplot2)
 library(data.table)
 library(DT)
@@ -58,14 +57,18 @@ Sidebar {.sidebar}
 
 helpText("Select an economic time series.")
 
-selectInput("indicatorSelect", "Choose an economic indicator", 
-                          choices = c("GDP Per Capita", 
-                                      "GDP Per Capita Growth", 
-                                      "Real Interest Rate", 
-                                      "Exchange Rate",
-                                      "CPI", 
-                                      "Labor Force Part. Rate",
-                                      "Female Labor Part."))
+ dataChoices <- c("GDP Per Capita" = "_NY_GDP_PCAP_KN",
+                  "GDP Per Capita Growth" = "_NY_GDP_PCAP_KD_ZG",
+                  "Real Interest Rate" = "_FR_INR_RINR",
+                  "Exchange Rate" = "_PX_REX_REER",
+                  "CPI" = "_FP_CPI_TOTL_ZG",
+                  "Labor Force Part. Rate" = "_SL_TLF_ACTI_ZS")
+
+
+selectInput("indicatorSelect", 
+            "Choose an economic indicator",
+            choices = dataChoices,
+            selected = "GDP Per Capita")
 
 ```
 
@@ -92,28 +95,32 @@ Row {.tabset .tabset-fade}
 
 dygraphOutput("dygraph")
   
-   clickedCountry <- eventReactive(input$map1_shape_click, {
-     return(input$map1_shape_click$id)
-     })
+clickedCountry <- eventReactive(input$map1_shape_click, {
+  return(input$map1_shape_click$id)
+})
    
-   indicatorInput <- reactive({
-       input$indicatorSelect
-     })
-   
-   output$dygraph <- renderDygraph({
+output$dygraph <- renderDygraph({
     
     ##not necessary but if desirable there's a package to translate country names into country codes
-    ##code2<- countrycode("enter country name here", "country.name", "iso3c")
+  
      
-    country <- as.character(clickedCountry())
-    indicator <- as.character(indicatorInput())
-    dygraph(econData[[indicator]][, country], main = 
-              paste(country, indicator, sep = " ")) %>%
-      dyRangeSelector(height = 20) %>%
-      dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
-      dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc =
-      "top", color = "red")
-      })
+  countryCode <- as.character(clickedCountry())
+  countryName<- countrycode(countryCode, "iso3c", "country.name")
+  indicatorValue <- as.character(input$indicatorSelect)
+  dataSet <- paste("WWDI/", countryCode, indicatorValue, sep = "")
+  indicatorName <- names(dataChoices[dataChoices==input$indicatorSelect])
+    
+  Quandl.api_key("d9EidiiDWoFESfdk5nPy")
+    
+  countryData <- Quandl(dataSet, type = "xts", order = "asc")
+    
+  dygraph(countryData, 
+          main = paste(countryName, indicatorName, 
+                       sep = " ")) %>%
+    dyRangeSelector(height = 20) %>%
+    dyShading(from = "2007-12-01", to = "2009-06-01", color = "#FFE6E6") %>% 
+    dyEvent(x = "2008-09-15", label = "Fin Crisis", labelLoc = "top", color = "red")
+})
    
 ```
 
@@ -121,21 +128,21 @@ dygraphOutput("dygraph")
 ### Data Table Country Indicators 
 
 ```{r}
-renderDataTable({
+#renderDataTable({
     
-    country <- as.character(clickedCountry())
+ #   country <- as.character(clickedCountry())
     
-    countryData <- econData %>% lapply(., function(x) {merge(x[, country])}) %>%
-        as.data.table() %>%
-        mutate_each(funs(round(.,2))) %>% 
-        mutate(Date = seq(mdy('12/31/1960'), mdy('12/31/2015'), by='years')) %>% 
-        setcolorder(., c(length(.), 1:(length(.)-1)))
+    #countryData <- econData %>% lapply(., function(x) {merge(x[, country])}) %>%
+     #   as.data.table() %>%
+    #    mutate_each(funs(round(.,2))) %>% 
+     #   mutate(Date = seq(mdy('12/31/1960'), mdy('12/31/2015'), by='years')) %>% 
+      #  setcolorder(., c(length(.), 1:(length(.)-1)))
     
-    datatable(countryData, fillContainer = TRUE, caption = 
-              paste(as.character(input$map1_shape_click$id), "Economic Data"), 
-              options = list(dom = 't'))
+  #  datatable(countryData, fillContainer = TRUE, caption = 
+   #           paste(as.character(input$map1_shape_click$id), "Economic Data"), 
+    #          options = list(dom = 't'))
     
-  })
+  #})
 
 ```
 
