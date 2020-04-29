@@ -17,6 +17,7 @@ library(scales)
 library(dygraphs)
 library(leaflet)
 library(dplyr)
+library(countrycode)
 library(ggplot2)
 library(data.table)
 library(DT)
@@ -28,21 +29,6 @@ library(xts)
 
 ##load data
 load('wdiMapData.RDat')
-
-##create shading by GDP
-qpal <- colorQuantile("Blues", world$gdp_md_est, n = 20)
-
-##create popup country name and economic stage
-popup <- paste0("<strong>Country: </strong>", 
-                world$name, 
-                "<br><strong>Market Stage: </strong>", 
-                world$economy)
-
-leaf_world <- leaflet(world) %>%
-  addProviderTiles("CartoDB.Positron") %>% 
-  setView(lng =  20, lat =  15, zoom = 2) %>%
-      addPolygons(stroke = FALSE, smoothFactor = 0.2, fillOpacity = .7, color =
-      ~qpal(gdp_md_est), layerId = ~iso_a3, popup = popup)
 
 ```
 
@@ -100,19 +86,23 @@ clickedCountry <- eventReactive(input$map1_shape_click, {
 })
    
 output$dygraph <- renderDygraph({
-    
-    ##not necessary but if desirable there's a package to translate country names into country codes
   
      
   countryCode <- as.character(clickedCountry())
-  countryName<- countrycode(countryCode, "iso3c", "country.name")
+  
+  
+  
   indicatorValue <- as.character(input$indicatorSelect)
+  
   dataSet <- paste("WWDI/", countryCode, indicatorValue, sep = "")
+  
   indicatorName <- names(dataChoices[dataChoices==input$indicatorSelect])
     
   Quandl.api_key("d9EidiiDWoFESfdk5nPy")
     
   countryData <- Quandl(dataSet, type = "xts", order = "asc")
+  
+  countryName<- countrycode(countryCode, "iso3c", "country.name")
     
   dygraph(countryData, 
           main = paste(countryName, indicatorName, 
